@@ -1,4 +1,5 @@
-import {ChangeEvent, MouseEvent, MouseEventHandler, useEffect, useRef, useState} from 'react'
+import {ChangeEvent, MouseEvent, MouseEventHandler, KeyboardEvent, useEffect, useRef, useState} from 'react'
+import * as Automerge from 'automerge'
 import './App.css'
 
 type Card = {
@@ -10,26 +11,50 @@ type State = {
   focus: number
 }
 
+type D = {
+  cards: Array<Card>
+}
+
 const newState = (autofocus: number, cards: Array<Card>): State => {
   return { cards, focus: autofocus }
 }
 
+const removeAtIdx = <T,>(cards: Array<T>, idx: number): Array<T> => {
+  if (!cards.length) {
+    return []
+  }
+  return [...cards.slice(0, idx), ...cards.slice(idx+1, cards.length)]
+}
+
 function App() {
+  const doc = Automerge.change<D>(Automerge.init(), (doc: D) => {
+    doc.cards = []
+  })
   const initState: State = {cards: [], focus: 0}
   const [state, setState] = useState(initState)
   const focusedInput = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    console.log(state)
+    console.log({state})
     focusedInput?.current?.focus()
   }, [state])
 
-  const setText = (e: ChangeEvent<HTMLTextAreaElement>, cardIndex: number) => {
-    console.log("setText", cardIndex)
-    e.preventDefault()
-    if (e.target.value === "") {
-      return
+  // useEffect(() => {
+  //   const d = Automerge.change(doc, doc => {
+  //     doc.cards = state.cards
+  //   })
+  // })
+
+  const handleKeyUp = (e: KeyboardEvent<HTMLTextAreaElement>, cardIndex: number) => {
+    console.log(e.key, state.cards[cardIndex].text)
+    if (e.key === "Backspace" && state.cards[cardIndex].text.trim() === "") {
+      const focus = cardIndex === 0 ? cardIndex+1 : state.cards.length+1
+      setState(newState(focus, removeAtIdx<Card>(state.cards, cardIndex)))
     }
+  }
+
+  const setText = (e: ChangeEvent<HTMLTextAreaElement>, cardIndex: number) => {
+    e.preventDefault()
     const updated = state.cards[cardIndex]
     updated.text = e.target.value
     setState(newState(state.focus, [...state.cards.slice(0, cardIndex), updated, ...state.cards.slice(cardIndex+1, state.cards.length)]))
@@ -52,7 +77,10 @@ function App() {
       if (!textSpace) {
         return
       }
-      if (!textSpace.firstElementChild || !textSpace.lastElementChild) {
+
+      console.log("movement", e.movementY)
+    const mouseY = (e.clientY - e.movementY) - textSpace.getBoundingClientRect().top
+    if (!textSpace.firstElementChild || !textSpace.lastElementChild) {
         addCardInPosition("BEGINNING")
         return
       }
@@ -60,12 +88,12 @@ function App() {
         addCardInPosition("BEGINNING")
         return
       }
-      if (e.clientY<textSpace.firstElementChild.getBoundingClientRect().y) {
+      if (mouseY<textSpace.firstElementChild.getBoundingClientRect().y) {
         addCardInPosition("BEGINNING")
         return
       }
       const {y, height} = textSpace.lastElementChild.getBoundingClientRect()
-      if (e.clientY>y+height) {
+      if (mouseY>y+height) {
         addCardInPosition("END")
       }
   }
@@ -77,16 +105,18 @@ function App() {
           { !state.cards.length
               ? <p id={"click-prompt"} className={"text-gray-300/70"}>Click here</p>
               :  state.cards.map((c, i) =>
-                  <textarea className="text-white bg-indigo-400/50 p-4 my-1"
-                          placeholder={"type something"}
-                          ref={state.focus === i ? focusedInput : null}
-                          cols={40}
-                          rows={c.text.split(/\r\n|\r|\n/).length}
-                          key={i}
-                          value={c.text}
-                          onChange={(e) => setText(e, i)}
-                          onClick={(e) => setState(newState(i, state.cards))}
-                  />
+                     <textarea className="text-white bg-indigo-400/10 p-4 my-1"
+                               placeholder={"type something"}
+                               ref={state.focus === i ? focusedInput : null}
+                               cols={40}
+                               rows={c.text.split(/\r\n|\r|\n/).length}
+                               key={i}
+                               value={c.text}
+                               onChange={(e) => setText(e, i)}
+                               onMouseUp={(e) => setState(newState(i, state.cards))}
+                               onKeyUp={(e) => handleKeyUp(e, i)}
+                               onFocus={e => setState(newState(i, state.cards))}
+                     />
               )
           }
         </div>
