@@ -15,21 +15,17 @@ type D = {
   cards: Array<Card>
 }
 
-const newState = (autofocus: number, cards: Array<Card>): State => {
-  return { cards, focus: autofocus }
+let doc = Automerge.init<D>()
+
+enum Position {
+  BEGINNING = "BEGINNING",
+  END = "END",
 }
 
-const removeAtIdx = <T,>(cards: Array<T>, idx: number): Array<T> => {
-  if (!cards.length) {
-    return []
-  }
-  return [...cards.slice(0, idx), ...cards.slice(idx+1, cards.length)]
-}
+type Index = number
+type PositionIndex = Position | Index
 
 function App() {
-  const doc = Automerge.change<D>(Automerge.init(), (doc: D) => {
-    doc.cards = []
-  })
   const initState: State = {cards: [], focus: 0}
   const [state, setState] = useState(initState)
   const focusedInput = useRef<HTMLTextAreaElement>(null)
@@ -39,46 +35,48 @@ function App() {
     focusedInput?.current?.focus()
   }, [state])
 
-  // useEffect(() => {
-  //   const d = Automerge.change(doc, doc => {
-  //     doc.cards = state.cards
-  //   })
-  // })
+  const addNewCard = (idx: number, card: Card, pos?: PositionIndex) => {
+    doc = Automerge.change<D>(doc, doc => {
+      if (!doc?.cards?.length) doc.cards = []
+      if (pos === Position.END || !pos) doc.cards.push(card)
+      if (pos === Position.BEGINNING) doc.cards.unshift(card)
+      if (typeof pos === "number") doc.cards.splice(pos, 0, card)
+    })
+    setState(newState(idx, doc.cards.map(c => ({text: c.text}))))
+  }
 
   const handleKeyUp = (e: KeyboardEvent<HTMLTextAreaElement>, cardIndex: number) => {
-    console.log(e.key, state.cards[cardIndex].text)
     if (e.key === "Backspace" && state.cards[cardIndex].text.trim() === "") {
-      const focus = cardIndex === 0 ? cardIndex+1 : state.cards.length+1
+      const focus = cardIndex === 0 ? cardIndex+1 : cardIndex-1
+
       setState(newState(focus, removeAtIdx<Card>(state.cards, cardIndex)))
     }
   }
 
   const setText = (e: ChangeEvent<HTMLTextAreaElement>, cardIndex: number) => {
     e.preventDefault()
-    const updated = state.cards[cardIndex]
-    updated.text = e.target.value
-    setState(newState(state.focus, [...state.cards.slice(0, cardIndex), updated, ...state.cards.slice(cardIndex+1, state.cards.length)]))
+    doc = Automerge.change<D>(doc, doc => {
+     doc.cards[cardIndex].text = e.target.value
+    })
+    setState(newState(state.focus, doc.cards.map(c => ({text: c.text}))))
   }
 
   const addCardInPosition = (position: string) => {
-    console.log("position",position)
     if (position === "END") {
       state.cards.push({text:""})
-      setState(newState(state.cards.length-1, state.cards))
+      addNewCard(state.cards.length-1, {text:""}, Position.END)
     } else if (position === "BEGINNING") {
-      setState(newState(0, [{text:""}, ...state.cards]))
+      addNewCard(0, {text:""}, Position.BEGINNING)
     }
   }
 
   const handleClick: MouseEventHandler<HTMLDivElement> = (e: MouseEvent) => {
-    console.log("click")
-      e.preventDefault()
-      const textSpace = document.getElementById("text-space")
-      if (!textSpace) {
-        return
-      }
+    e.preventDefault()
+    const textSpace = document.getElementById("text-space")
+    if (!textSpace) {
+      return
+    }
 
-      console.log("movement", e.movementY)
     const mouseY = (e.clientY - e.movementY) - textSpace.getBoundingClientRect().top
     if (!textSpace.firstElementChild || !textSpace.lastElementChild) {
         addCardInPosition("BEGINNING")
@@ -124,5 +122,18 @@ function App() {
     </div>
   )
 }
+
+const newState = (autofocus: number, cards: Array<Card>): State => {
+  return { cards, focus: autofocus }
+
+}
+const removeAtIdx = <T,>(cards: Array<T>, idx: number): Array<T> => {
+  if (!cards.length) {
+    return []
+  }
+  return [...cards.slice(0, idx), ...cards.slice(idx+1, cards.length)]
+
+}
+
 
 export default App
