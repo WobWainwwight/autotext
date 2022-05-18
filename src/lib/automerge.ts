@@ -1,20 +1,34 @@
 import Automerge, {ChangeFn} from "automerge";
+import {get, set} from "idb-keyval"
 
 export type Card = {
     text: string
 }
 
-type D = {
+export type D = {
     cards: Array<Card>
 }
 
 let doc = Automerge.init<D>()
 
+export const fetchLocalDoc = async (): Promise<D> => {
+    try {
+        const val = await get("auto-doc")
+        doc = Automerge.load(val)
+    } catch(e) {
+        console.log("could not fetch auto-doc",e)
+        return doc
+    }
+    return doc
+}
 
 const changeAndSave = (callback: ChangeFn<D>): D => {
     doc = Automerge.change<D>(doc, callback)
-    // save here
     console.log(doc, JSON.stringify(doc))
+    const b = Automerge.save(doc)
+    set("auto-doc", b)
+        .then(() => console.log("saved automerged doc"))
+        .catch((e) => console.log("failed to save", e))
     return doc
 }
 

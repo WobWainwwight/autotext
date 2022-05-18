@@ -1,6 +1,6 @@
 import {ChangeEvent, MouseEvent, MouseEventHandler, KeyboardEvent, useEffect, useRef, useState} from 'react'
 import './App.css'
-import {addCardInPosition, appendCardToDoc, Card, deleteAtPosition, setTextOnCard} from "./lib/automerge"
+import {addCardInPosition, appendCardToDoc, Card, D, deleteAtPosition, fetchLocalDoc, setTextOnCard} from "./lib/automerge"
 
 
 type State = {
@@ -18,15 +18,34 @@ type PositionIndex = Position | Index
 
 const BlankCard = {text: ""}
 
+const getInitialState = (doc?: D): State => {
+  if (doc?.cards?.length) {
+    return {
+      cards: doc.cards.map(c => ({text: c.text})),
+      focus: 0
+    }
+  }
+  return {cards: [], focus:0}
+}
 function App() {
-  const initState: State = {cards: [], focus: 0}
-  const [state, setState] = useState(initState)
+  const [state, setState] = useState<State>(getInitialState())
   const focusedInput = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     console.log(state)
     focusedInput?.current?.focus()
   }, [state])
+
+  useEffect(() => {
+    const fetch = async () => {
+      const doc = await fetchLocalDoc()
+      console.log("effect", doc)
+      if (doc) {
+        setState(getInitialState(doc))
+      }
+    }
+    fetch()
+  },[])
 
   const addNewCard = (idx: number, card: Card, pos?: PositionIndex) => {
     const addCard = (): Array<Card> => {
