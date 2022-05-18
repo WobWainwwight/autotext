@@ -31,7 +31,6 @@ function App() {
   const focusedInput = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    console.log({state})
     focusedInput?.current?.focus()
   }, [state])
 
@@ -49,6 +48,9 @@ function App() {
     if (e.key === "Backspace" && state.cards[cardIndex].text.trim() === "") {
       const focus = cardIndex === 0 ? cardIndex+1 : cardIndex-1
 
+      doc = Automerge.change<D>(doc, doc => {
+        doc?.cards?.splice(cardIndex, 1)
+      })
       setState(newState(focus, removeAtIdx<Card>(state.cards, cardIndex)))
     }
   }
@@ -98,7 +100,10 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header">
+      <header className="App-header flex">
+        <div>
+          {JSON.stringify(doc)}
+        </div>
         <div id={"text-space"} className={"flex flex-col justify-center min-w-[40%] min-h-screen p-y-5"} onClick={handleClick}>
           { !state.cards.length
               ? <p id={"click-prompt"} className={"text-gray-300/70"}>Click here</p>
